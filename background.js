@@ -27,6 +27,12 @@ let dailyStats = {
   lastTabSwitch: null,
 };
 
+let soundPlayer = null;
+let currentSoundscape = 'none';
+let audioContext = null;
+let soundSource = null;
+let gainNode = null;
+
 chrome.storage.sync.get(
   ["dailyStats", "blockedSites", "analyticsData"],
   (data) => {
@@ -67,6 +73,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           checkIfSiteBlocked(tabs[0].url, tabs[0].id);
         }
       });
+      break;
+    case "updateSoundscape":
+      handleSoundscape(message.soundType);
       break;
   }
 });
@@ -470,5 +479,54 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         }
       }
     );
+  }
+});
+
+async function handleSoundscape(type) {
+  try {
+    // Check if offscreen document exists
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT']
+    });
+    
+    if (existingContexts.length === 0) {
+      // Create offscreen document if it doesn't exist
+      await chrome.offscreen.createDocument({
+        url: 'offscreen.html',
+        reasons: ['AUDIO_PLAYBACK'],
+        justification: 'Playing background sounds for focus'
+      });
+    }
+    
+    // Send message to offscreen document
+    chrome.runtime.sendMessage({
+      type: "handleSound",
+      soundType: type
+    });
+    
+    currentSoundscape = type;
+    chrome.storage.sync.set({ soundscape: type });
+  } catch (error) {
+    console.error('Error handling soundscape:', error);
+    currentSoundscape = 'none';
+    chrome.storage.sync.set({ soundscape: 'none' });
+  }
+}
+
+// Add listener for sound errors
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "soundError") {
+    console.error('Sound error:', message.error);
+    currentSoundscape = 'none';
+    chrome.storage.sync.set({ soundscape: 'none' });
+  }
+});
+
+chrome.runtime.onSuspend.addListener(() => {
+  if (soundSource) {
+    soundSource.stop();
+  }
+  if (audioContext) {
+    audioContext.close();
   }
 });

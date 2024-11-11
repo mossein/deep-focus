@@ -12,7 +12,8 @@
     "contextMenus",
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess",
-    "commands"
+    "commands",
+    "offscreen"
   ],
   "host_permissions": ["<all_urls>"],
   "action": {
@@ -54,7 +55,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["sounds/*", "blocked.html", "dashboard.html"],
+      "resources": ["sounds/*.mp3", "offscreen.html"],
       "matches": ["<all_urls>"]
     }
   ],

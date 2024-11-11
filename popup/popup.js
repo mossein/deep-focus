@@ -361,17 +361,10 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function initializeSoundscape(type) {
-    if (soundPlayer) {
-      soundPlayer.pause();
-      soundPlayer = null;
-    }
-
-    if (type !== "none") {
-      soundPlayer = new Audio(`../sounds/${type}.mp3`);
-      soundPlayer.loop = true;
-      soundPlayer.volume = 0.3;
-      soundPlayer.play();
-    }
+    chrome.runtime.sendMessage({
+      type: "updateSoundscape",
+      soundType: type
+    });
   }
 
   function loadBlockedSites() {

@@ -9,26 +9,64 @@
     "notifications",
     "tabs",
     "webNavigation",
-    "contextMenus"
+    "contextMenus",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess",
+    "commands"
   ],
+  "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": "icons/icon.png"
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
+      "exclude_matches": [
+        "*://*/*blocked.html*",
+        "*://*/*dashboard.html*"
+      ],
       "js": ["content.js"]
     }
   ],
   "icons": {
-    "200": "icons/icon.png"
+    "16": "icons/icon.png",
+    "48": "icons/icon.png",
+    "128": "icons/icon.png"
   },
-  "web_accessible_resources": [{
-    "resources": ["sounds/*"],
-    "matches": ["<all_urls>"]
-  }]
+  "commands": {
+    "toggle-focus-mode": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F",
+        "mac": "Command+Shift+F"
+      },
+      "description": "Toggle Focus Mode"
+    },
+    "start-pomodoro": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+P",
+        "mac": "Command+Shift+P"
+      },
+      "description": "Start/Stop Pomodoro Timer"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["sounds/*", "blocked.html", "dashboard.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  }
 }

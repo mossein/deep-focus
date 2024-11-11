@@ -29,14 +29,44 @@
         </select>
       </div>
 
-      <div class="setting-item">
-        <label>Pomodoro Timer:</label>
+      <div class="setting-item pomodoro-section">
+        <div class="pomodoro-display">
+          <div class="timer-display">
+            <span id="timerMinutes">25</span>:<span id="timerSeconds">00</span>
+          </div>
+          <div class="timer-label" id="timerLabel">FOCUS TIME</div>
+        </div>
+        
         <div class="pomodoro-controls">
-          <input type="number" id="workDuration" min="1" max="60" value="25">
-          <span>min work</span>
-          <input type="number" id="breakDuration" min="1" max="30" value="5">
-          <span>min break</span>
-          <button id="startPomodoro">Start</button>
+          <div class="duration-controls">
+            <div class="duration-input">
+              <label>Work</label>
+              <div class="number-input">
+                <button class="minus" data-input="workDuration">-</button>
+                <input type="number" id="workDuration" min="1" max="60" value="25">
+                <button class="plus" data-input="workDuration">+</button>
+              </div>
+            </div>
+            <div class="duration-input">
+              <label>Break</label>
+              <div class="number-input">
+                <button class="minus" data-input="breakDuration">-</button>
+                <input type="number" id="breakDuration" min="1" max="30" value="5">
+                <button class="plus" data-input="breakDuration">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <button id="startPomodoro" class="timer-button">Start Focus</button>
+        
+        <div class="pomodoro-progress">
+          <div class="progress-bar">
+            <div id="progressFill"></div>
+          </div>
+          <div class="session-count">
+            Sessions completed: <span id="sessionCount">0</span>
+          </div>
         </div>
       </div>
 
@@ -48,6 +78,20 @@
           <option value="rain">Rain</option>
           <option value="cafe">Cafe Ambience</option>
         </select>
+      </div>
+
+      <div class="setting-item">
+        <label>Blocked Sites:</label>
+        <div class="blocked-sites">
+          <input type="text" id="newSite" placeholder="Enter domain (e.g., facebook.com)">
+          <button id="addSite">Add</button>
+        </div>
+        <ul id="blockedSitesList" class="blocked-list"></ul>
+      </div>
+
+      <div class="setting-item">
+        <label>Dimming Level:</label>
+        <input type="range" id="dimmingLevel" min="0" max="100" value="50">
       </div>
     </div>
 

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Site Blocked - Deep Focus</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+
+    .container {
+      text-align: center;
+      padding: 2rem;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      max-width: 500px;
+    }
+
+    h1 {
+      color: #2196F3;
+      margin-bottom: 1rem;
+    }
+
+    .timer {
+      font-size: 2rem;
+      margin: 1rem 0;
+      color: #2196F3;
+    }
+
+    button {
+      padding: 8px 16px;
+      background: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    button:hover {
+      background: #1976D2;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Site Blocked</h1>
+    <p>This site is currently blocked to help you maintain focus.</p>
+    <div class="timer" id="timer"></div>
+    <button id="override">Override Block (Not Recommended)</button>
+  </div>
+  <script src="blocked.js"></script>
+</body>
+</html> 

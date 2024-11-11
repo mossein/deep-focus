@@ -16,20 +16,48 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const dimmingLevel = document.getElementById("dimmingLevel");
 
+  const grayModeToggle = document.getElementById("grayMode");
+
   let pomodoroActive = false;
   let soundPlayer = null;
 
+  const STORAGE_DEBOUNCE_TIME = 1000; // 1 second
+  let pendingStorageUpdates = {};
+  let storageUpdateTimeout = null;
+
+  function batchStorageUpdate(key, value) {
+    pendingStorageUpdates[key] = value;
+
+    if (storageUpdateTimeout) {
+      clearTimeout(storageUpdateTimeout);
+    }
+
+    storageUpdateTimeout = setTimeout(() => {
+      chrome.storage.sync.set(pendingStorageUpdates);
+      pendingStorageUpdates = {};
+      storageUpdateTimeout = null;
+    }, STORAGE_DEBOUNCE_TIME);
+  }
+
   function sendMessageToActiveTab(message) {
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-      if (tabs[0]) {
+      if (tabs[0]?.id) {
         try {
-          chrome.tabs.sendMessage(tabs[0].id, message).catch(() => {
-            console.log("Tab not ready for messages");
-          });
-        } catch (error) {
-          console.log("Error sending message to tab:", error);
-        }
+          chrome.tabs.sendMessage(tabs[0].id, message).catch(() => {});
+        } catch (error) {}
       }
+    });
+  }
+
+  function sendMessageToAllTabs(message) {
+    chrome.tabs.query({}, function (tabs) {
+      tabs.forEach((tab) => {
+        if (tab.id) {
+          try {
+            chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+          } catch (error) {}
+        }
+      });
     });
   }
 
@@ -42,6 +70,7 @@ document.addEventListener("DOMContentLoaded", function () {
       "soundscape",
       "dimmingLevel",
       "pomodoroActive",
+      "grayMode",
     ],
     function (data) {
       focusModeToggle.checked = data.focusMode || false;
@@ -51,6 +80,7 @@ document.addEventListener("DOMContentLoaded", function () {
       soundscape.value = data.soundscape || "none";
       dimmingLevel.value = data.dimmingLevel || 50;
       pomodoroActive = data.pomodoroActive || false;
+      grayModeToggle.checked = data.grayMode || false;
 
       if (pomodoroActive) {
         startPomodoroBtn.textContent = "Stop";
@@ -59,24 +89,30 @@ document.addEventListener("DOMContentLoaded", function () {
       if (data.soundscape !== "none") {
         initializeSoundscape(data.soundscape);
       }
+
+      document.getElementById("dimmingValue").textContent = `${
+        data.dimmingLevel || 50
+      }%`;
     }
   );
 
   updateStats();
 
   focusModeToggle.addEventListener("change", function () {
-    chrome.storage.sync.set({ focusMode: this.checked });
+    const isEnabled = this.checked;
+    chrome.storage.sync.set({ focusMode: isEnabled });
+
     setTimeout(() => {
-      sendMessageToActiveTab({
+      sendMessageToAllTabs({
         type: "toggleFocusMode",
-        enabled: this.checked,
+        enabled: isEnabled,
       });
     }, 100);
   });
 
   filterLevel.addEventListener("change", function () {
     const level = this.value;
-    chrome.storage.sync.set({ filterLevel: level });
+    batchStorageUpdate("filterLevel", level);
     setTimeout(() => {
       sendMessageToActiveTab({
         type: "setFilterLevel",
@@ -109,11 +145,33 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   dimmingLevel.addEventListener("input", function () {
-    chrome.storage.sync.set({ dimmingLevel: this.value });
-    sendMessageToActiveTab({
-      type: "updateDimming",
-      level: this.value,
-    });
+    const value = this.value;
+    document.getElementById("dimmingValue").textContent = `${value}%`;
+
+    clearTimeout(this.timeout);
+    this.timeout = setTimeout(() => {
+      sendMessageToActiveTab({
+        type: "updateDimming",
+        level: value,
+      });
+    }, 16); // roughly one frame at 60fps
+  });
+
+  dimmingLevel.addEventListener("change", function () {
+    const value = this.value;
+    batchStorageUpdate("dimmingLevel", parseInt(value));
+  });
+
+  grayModeToggle.addEventListener("change", function () {
+    const isEnabled = this.checked;
+    chrome.storage.sync.set({ grayMode: isEnabled });
+
+    setTimeout(() => {
+      sendMessageToAllTabs({
+        type: "toggleGrayMode",
+        enabled: isEnabled,
+      });
+    }, 100);
   });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -129,18 +187,42 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   function updateStats() {
-    chrome.runtime.sendMessage({ type: "getStats" }, function (stats) {
-      if (stats) {
-        updateStatsUI(stats);
+    chrome.runtime.sendMessage({ type: "getStats" }, function (response) {
+      if (response && response.dailyStats) {
+        updateStatsUI(response.dailyStats);
       }
     });
   }
 
-  function updateStatsUI(stats, focusScore) {
-    focusTimeEl.textContent = stats.focusTime;
-    tabSwitchesEl.textContent = stats.tabSwitches;
-    focusScoreEl.textContent = focusScore || calculateFocusScore(stats);
+  function updateStatsUI(stats) {
+    if (!stats) return;
+
+    focusTimeEl.textContent = stats.focusTime || "0";
+    tabSwitchesEl.textContent = stats.tabSwitches || "0";
+
+    const score = calculateFocusScore(stats);
+    focusScoreEl.textContent = score;
   }
+
+  function calculateFocusScore(stats) {
+    if (!stats) return 100;
+
+    const baseScore = 100;
+    const tabSwitchPenalty = 2;
+    const distractionPenalty = 5;
+
+    let score = baseScore;
+    score -= (stats.tabSwitches || 0) * tabSwitchPenalty;
+    score -= (stats.distractions || 0) * distractionPenalty;
+
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  // Update stats every minute
+  setInterval(updateStats, 60000);
+
+  // Update stats when popup opens
+  updateStats();
 
   function updatePomodoroUI(data) {
     const totalSeconds = Math.floor(data.timeRemaining / 1000);
@@ -185,7 +267,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const li = document.createElement("li");
         li.innerHTML = `
           ${site}
-          <button class="remove-site" data-site="${site}">×</button>
+          <button class="remove-site" data-site="${site}">&times;</button>
         `;
         blockedSitesList.appendChild(li);
       });
@@ -268,21 +350,9 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       }
 
-      chrome.storage.sync.set({ [inputId]: parseInt(input.value) });
+      batchStorageUpdate(inputId, parseInt(input.value));
     });
   });
-
-  function calculateFocusScore(stats) {
-    const baseScore = 100;
-    const tabSwitchPenalty = 2;
-    const distractionPenalty = 5;
-
-    let score = baseScore;
-    score -= stats.tabSwitches * tabSwitchPenalty;
-    score -= stats.distractions * distractionPenalty;
-
-    return Math.max(0, Math.min(100, score));
-  }
 
   function startTimerUpdate() {
     chrome.storage.sync.get(
@@ -304,4 +374,21 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   startTimerUpdate();
+
+  chrome.storage.sync.get(["focusMode", "dimmingLevel"], function (data) {
+    focusModeToggle.checked = data.focusMode || false;
+    dimmingLevel.value = data.dimmingLevel || 50;
+    document.getElementById("dimmingValue").textContent = `${
+      data.dimmingLevel || 50
+    }%`;
+
+    if (data.focusMode) {
+      setTimeout(() => {
+        sendMessageToAllTabs({
+          type: "toggleFocusMode",
+          enabled: true,
+        });
+      }, 100);
+    }
+  });
 });

@@ -1,6 +1,7 @@
 let focusOverlay = null;
 let filteredElements = new Set();
 let observer = null;
+let grayModeOverlay = null;
 
 const filterLevels = {
   light: ["ads", "comments"],
@@ -90,15 +91,20 @@ function createOverlay(dimmingLevel) {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
     background-color: rgba(0, 0, 0, ${(dimmingLevel / 100) * 0.7});
     pointer-events: none;
-    z-index: 9999;
+    z-index: 2147483647;
     transition: background-color 0.3s ease;
+    position: fixed;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
   `;
 
-  document.body.appendChild(focusOverlay);
+  document.documentElement.appendChild(focusOverlay);
 }
 
 function applyContentFiltering(level) {
@@ -165,8 +171,8 @@ function initializeObserver() {
   }
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initializeObserver);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeObserver);
 } else {
   initializeObserver();
 }
@@ -179,15 +185,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           createOverlay(data.dimmingLevel || 50);
         });
       } else if (focusOverlay) {
-        document.body.removeChild(focusOverlay);
+        focusOverlay.remove();
       }
       break;
 
     case "updateDimming":
+      const level = message.level || 50;
       if (focusOverlay) {
         focusOverlay.style.backgroundColor = `rgba(0, 0, 0, ${
-          (message.level / 100) * 0.7
+          (level / 100) * 0.7
         })`;
+      } else {
+        chrome.storage.sync.get(["focusMode"], function (data) {
+          if (data.focusMode) {
+            createOverlay(level);
+          }
+        });
       }
       break;
 
@@ -206,20 +219,94 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         addCustomFilter(elementAtPoint);
       }
       break;
+
+    case "toggleGrayMode":
+      if (message.enabled) {
+        document.body.style.filter = 'grayscale(100%)';
+        document.body.style.webkitFilter = 'grayscale(100%)';
+        createGrayOverlay();
+      } else {
+        if (grayModeOverlay) {
+          grayModeOverlay.remove();
+        }
+        document.body.style.filter = '';
+        document.body.style.webkitFilter = '';
+      }
+      break;
   }
 });
 
+// Update the tab switch tracking
 let tabSwitchCount = 0;
 let lastActiveTime = Date.now();
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
-    tabSwitchCount++;
     chrome.runtime.sendMessage({
       type: "tabSwitch",
-      count: tabSwitchCount,
+      timestamp: Date.now(),
     });
   } else {
     lastActiveTime = Date.now();
   }
 });
+
+// Initialize focus mode on page load
+function initializeFocusMode() {
+  chrome.storage.sync.get(["focusMode", "dimmingLevel"], function (data) {
+    if (data.focusMode) {
+      createOverlay(data.dimmingLevel || 50);
+    }
+  });
+}
+
+// Call initialization immediately and after DOM is ready
+initializeFocusMode();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeFocusMode);
+}
+
+function createGrayOverlay() {
+  if (grayModeOverlay) {
+    grayModeOverlay.remove();
+  }
+
+  // Apply grayscale filter directly to the body
+  document.body.style.filter = 'grayscale(100%)';
+  document.body.style.webkitFilter = 'grayscale(100%)';
+
+  // Create an overlay just to handle transitions
+  grayModeOverlay = document.createElement("div");
+  grayModeOverlay.id = "gray-overlay";
+  grayModeOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 2147483646;
+    transition: all 0.3s ease;
+  `;
+
+  document.documentElement.appendChild(grayModeOverlay);
+}
+
+function initializeModes() {
+  chrome.storage.sync.get(["focusMode", "dimmingLevel", "grayMode"], function (data) {
+    if (data.focusMode) {
+      createOverlay(data.dimmingLevel || 50);
+    }
+    if (data.grayMode) {
+      document.body.style.filter = 'grayscale(100%)';
+      document.body.style.webkitFilter = 'grayscale(100%)';
+      createGrayOverlay();
+    }
+  });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeModes);
+} else {
+  initializeModes();
+}

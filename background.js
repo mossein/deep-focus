@@ -24,6 +24,7 @@ let dailyStats = {
   distractions: 0,
   pomodoroActive: false,
   currentSession: null,
+  lastTabSwitch: null
 };
 
 chrome.storage.sync.get(
@@ -50,7 +51,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       clearPomodoroTimer();
       break;
     case "tabSwitch":
-      handleTabSwitch();
+      handleTabSwitch(message.timestamp);
       break;
     case "getStats":
       sendResponse({ dailyStats, analyticsData });
@@ -266,10 +267,12 @@ function updateStats() {
   });
 }
 
-function handleTabSwitch() {
-  dailyStats.tabSwitches++;
-  dailyStats.distractions++;
-  updateStats();
+function handleTabSwitch(timestamp) {
+  if (!dailyStats.lastTabSwitch || timestamp - dailyStats.lastTabSwitch > 1000) {
+    dailyStats.tabSwitches++;
+    dailyStats.lastTabSwitch = timestamp;
+    updateStats();
+  }
 }
 
 function calculateFocusScore() {
@@ -290,6 +293,9 @@ function resetDailyStats() {
     tabSwitches: 0,
     pomodorosCompleted: 0,
     distractions: 0,
+    pomodoroActive: false,
+    currentSession: null,
+    lastTabSwitch: null
   };
   updateStats();
 }
@@ -311,6 +317,10 @@ chrome.tabs.onCreated.addListener((tab) => {
   if (tab.url) {
     checkIfSiteBlocked(tab.url, tab.id);
   }
+});
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  handleTabSwitch(Date.now());
 });
 
 async function updateBlockedSites(sites) {

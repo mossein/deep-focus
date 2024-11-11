@@ -16,6 +16,14 @@
       <span>Enable Focus Mode</span>
     </div>
 
+    <div class="toggle-section">
+      <label class="switch">
+        <input type="checkbox" id="grayMode">
+        <span class="slider round"></span>
+      </label>
+      <span>Gray Mode</span>
+    </div>
+
     <div class="settings">
       <h2>Focus Settings</h2>
       
@@ -89,8 +97,11 @@
         <ul id="blockedSitesList" class="blocked-list"></ul>
       </div>
 
-      <div class="setting-item">
-        <label>Dimming Level:</label>
+      <div class="setting-item dimming-control">
+        <label>
+          <span>Dimming Level</span>
+          <span class="value" id="dimmingValue">50%</span>
+        </label>
         <input type="range" id="dimmingLevel" min="0" max="100" value="50">
       </div>
     </div>

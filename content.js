@@ -1,3 +1,48 @@
+const preloadStyles = document.createElement('style');
+preloadStyles.textContent = `
+  html {
+    visibility: hidden !important;
+  }
+  html.focus-mode-ready {
+    visibility: visible !important;
+  }
+  .focus-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 2147483647;
+    transition: background-color 0.3s ease;
+  }
+`;
+document.documentElement.appendChild(preloadStyles);
+
+chrome.storage.sync.get(
+  ["focusMode", "dimmingLevel", "grayMode", "filterLevel"],
+  function (data) {
+    if (data.focusMode) {
+      if (data.grayMode) {
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = `
+          html { filter: grayscale(100%) !important; }
+        `;
+        document.documentElement.appendChild(styleSheet);
+      }
+      
+      const overlay = document.createElement('div');
+      overlay.className = 'focus-overlay';
+      overlay.style.backgroundColor = `rgba(0, 0, 0, ${(data.dimmingLevel || 50) / 100 * 0.7})`;
+      document.documentElement.appendChild(overlay);
+    }
+    
+    requestAnimationFrame(() => {
+      document.documentElement.classList.add('focus-mode-ready');
+    });
+  }
+);
+
 let focusOverlay = null;
 let filteredElements = new Set();
 let observer = null;
@@ -83,29 +128,17 @@ function addCustomFilter(element) {
 
 function createOverlay(dimmingLevel) {
   if (focusOverlay) {
-    document.body.removeChild(focusOverlay);
+    focusOverlay.remove();
   }
 
   focusOverlay = document.createElement("div");
   focusOverlay.id = "focus-overlay";
-  focusOverlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(0, 0, 0, ${(dimmingLevel / 100) * 0.7});
-    pointer-events: none;
-    z-index: 2147483647;
-    transition: background-color 0.3s ease;
-    position: fixed;
-    left: 0;
-    top: 0;
-    right: 0;
-    bottom: 0;
-  `;
+  focusOverlay.className = "focus-overlay";
+  focusOverlay.style.backgroundColor = `rgba(0, 0, 0, ${(dimmingLevel / 100) * 0.7})`;
 
   document.documentElement.appendChild(focusOverlay);
+  focusOverlay.offsetHeight;
+  focusOverlay.classList.add('active');
 }
 
 function applyContentFiltering(level) {
@@ -212,9 +245,13 @@ function chromeAPIWrapper(callback) {
 function cleanup() {
   try {
     if (focusOverlay) {
-      focusOverlay.remove();
-      focusOverlay = null;
+      focusOverlay.classList.remove('active');
+      setTimeout(() => {
+        focusOverlay.remove();
+        focusOverlay = null;
+      }, 300);
     }
+    document.documentElement.classList.remove('focus-mode-active');
     if (grayModeOverlay) {
       grayModeOverlay.remove();
       grayModeOverlay = null;
@@ -243,10 +280,14 @@ function initializeModes() {
       ["focusMode", "dimmingLevel", "grayMode", "filterLevel"],
       function (data) {
         if (chrome.runtime.lastError) {
+          document.documentElement.classList.remove('focus-mode-loading');
+          document.documentElement.classList.add('focus-mode-ready');
           console.error(chrome.runtime.lastError);
           return;
         }
+        
         if (data.focusMode) {
+          document.documentElement.classList.add('focus-mode-active');
           createOverlay(data.dimmingLevel || 50);
           if (data.filterLevel && data.filterLevel !== "none") {
             applyContentFiltering(data.filterLevel);
@@ -257,6 +298,11 @@ function initializeModes() {
             createGrayOverlay();
           }
         }
+        
+        requestAnimationFrame(() => {
+          document.documentElement.classList.remove('focus-mode-loading');
+          document.documentElement.classList.add('focus-mode-ready');
+        });
       }
     );
   });

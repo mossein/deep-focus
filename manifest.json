@@ -27,7 +27,8 @@
     {
       "matches": ["<all_urls>"],
       "exclude_matches": ["*://*/*blocked.html*", "*://*/*dashboard.html*"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "run_at": "document_start"
     }
   ],
   "icons": {

@@ -28,7 +28,7 @@ let dailyStats = {
 };
 
 let soundPlayer = null;
-let currentSoundscape = 'none';
+let currentSoundscape = "none";
 let audioContext = null;
 let soundSource = null;
 let gainNode = null;
@@ -484,41 +484,37 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 async function handleSoundscape(type) {
   try {
-    // Check if offscreen document exists
     const existingContexts = await chrome.runtime.getContexts({
-      contextTypes: ['OFFSCREEN_DOCUMENT']
+      contextTypes: ["OFFSCREEN_DOCUMENT"],
     });
-    
+
     if (existingContexts.length === 0) {
-      // Create offscreen document if it doesn't exist
       await chrome.offscreen.createDocument({
-        url: 'offscreen.html',
-        reasons: ['AUDIO_PLAYBACK'],
-        justification: 'Playing background sounds for focus'
+        url: "offscreen.html",
+        reasons: ["AUDIO_PLAYBACK"],
+        justification: "Playing background sounds for focus",
       });
     }
-    
-    // Send message to offscreen document
+
     chrome.runtime.sendMessage({
       type: "handleSound",
-      soundType: type
+      soundType: type,
     });
-    
+
     currentSoundscape = type;
     chrome.storage.sync.set({ soundscape: type });
   } catch (error) {
-    console.error('Error handling soundscape:', error);
-    currentSoundscape = 'none';
-    chrome.storage.sync.set({ soundscape: 'none' });
+    console.error("Error handling soundscape:", error);
+    currentSoundscape = "none";
+    chrome.storage.sync.set({ soundscape: "none" });
   }
 }
 
-// Add listener for sound errors
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "soundError") {
-    console.error('Sound error:', message.error);
-    currentSoundscape = 'none';
-    chrome.storage.sync.set({ soundscape: 'none' });
+    console.error("Sound error:", message.error);
+    currentSoundscape = "none";
+    chrome.storage.sync.set({ soundscape: "none" });
   }
 });
 
@@ -529,4 +525,70 @@ chrome.runtime.onSuspend.addListener(() => {
   if (audioContext) {
     audioContext.close();
   }
+});
+
+function updateExtensionIcon(isEnabled) {
+  try {
+    const canvas = new OffscreenCanvas(128, 128);
+    const ctx = canvas.getContext("2d");
+
+    const loadImage = () => {
+      return new Promise((resolve, reject) => {
+        fetch(chrome.runtime.getURL("icons/icon.png"))
+          .then((response) => response.blob())
+          .then((blob) => createImageBitmap(blob))
+          .then((imageBitmap) => {
+            ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+
+            if (!isEnabled) {
+              const imageData = ctx.getImageData(
+                0,
+                0,
+                canvas.width,
+                canvas.height
+              );
+              const data = imageData.data;
+
+              for (let i = 0; i < data.length; i += 4) {
+                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                data[i] = avg;
+                data[i + 1] = avg;
+                data[i + 2] = avg;
+                data[i + 3] = data[i + 3] * 0.5;
+              }
+
+              ctx.putImageData(imageData, 0, 0);
+            }
+
+            const imageData = ctx.getImageData(
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            );
+            chrome.action.setIcon({ imageData });
+            resolve();
+          })
+          .catch(reject);
+      });
+    };
+
+    loadImage().catch((error) => {
+      console.error("Error loading icon:", error);
+    });
+  } catch (error) {
+    console.error("Failed to update icon:", error);
+  }
+}
+
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === "sync" && changes.focusMode) {
+    updateExtensionIcon(changes.focusMode.newValue);
+  }
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.sync.get(["focusMode"], (data) => {
+    updateExtensionIcon(data.focusMode || false);
+  });
 });

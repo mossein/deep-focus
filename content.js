@@ -222,21 +222,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "toggleGrayMode":
       if (message.enabled) {
-        document.body.style.filter = 'grayscale(100%)';
-        document.body.style.webkitFilter = 'grayscale(100%)';
+        document.body.style.filter = "grayscale(100%)";
+        document.body.style.webkitFilter = "grayscale(100%)";
         createGrayOverlay();
       } else {
         if (grayModeOverlay) {
           grayModeOverlay.remove();
         }
-        document.body.style.filter = '';
-        document.body.style.webkitFilter = '';
+        document.body.style.filter = "";
+        document.body.style.webkitFilter = "";
       }
       break;
   }
 });
 
-// Update the tab switch tracking
 let tabSwitchCount = 0;
 let lastActiveTime = Date.now();
 
@@ -251,7 +250,6 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-// Initialize focus mode on page load
 function initializeFocusMode() {
   chrome.storage.sync.get(["focusMode", "dimmingLevel"], function (data) {
     if (data.focusMode) {
@@ -260,7 +258,6 @@ function initializeFocusMode() {
   });
 }
 
-// Call initialization immediately and after DOM is ready
 initializeFocusMode();
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initializeFocusMode);
@@ -270,12 +267,10 @@ function createGrayOverlay() {
   if (grayModeOverlay) {
     grayModeOverlay.remove();
   }
+  
+  document.body.style.filter = "grayscale(100%)";
+  document.body.style.webkitFilter = "grayscale(100%)";
 
-  // Apply grayscale filter directly to the body
-  document.body.style.filter = 'grayscale(100%)';
-  document.body.style.webkitFilter = 'grayscale(100%)';
-
-  // Create an overlay just to handle transitions
   grayModeOverlay = document.createElement("div");
   grayModeOverlay.id = "gray-overlay";
   grayModeOverlay.style.cssText = `
@@ -293,16 +288,19 @@ function createGrayOverlay() {
 }
 
 function initializeModes() {
-  chrome.storage.sync.get(["focusMode", "dimmingLevel", "grayMode"], function (data) {
-    if (data.focusMode) {
-      createOverlay(data.dimmingLevel || 50);
+  chrome.storage.sync.get(
+    ["focusMode", "dimmingLevel", "grayMode"],
+    function (data) {
+      if (data.focusMode) {
+        createOverlay(data.dimmingLevel || 50);
+      }
+      if (data.grayMode) {
+        document.body.style.filter = "grayscale(100%)";
+        document.body.style.webkitFilter = "grayscale(100%)";
+        createGrayOverlay();
+      }
     }
-    if (data.grayMode) {
-      document.body.style.filter = 'grayscale(100%)';
-      document.body.style.webkitFilter = 'grayscale(100%)';
-      createGrayOverlay();
-    }
-  });
+  );
 }
 
 if (document.readyState === "loading") {

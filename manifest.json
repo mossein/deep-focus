@@ -26,10 +26,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "exclude_matches": [
-        "*://*/*blocked.html*",
-        "*://*/*dashboard.html*"
-      ],
+      "exclude_matches": ["*://*/*blocked.html*", "*://*/*dashboard.html*"],
       "js": ["content.js"]
     }
   ],

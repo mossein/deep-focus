@@ -24,7 +24,7 @@ let dailyStats = {
   distractions: 0,
   pomodoroActive: false,
   currentSession: null,
-  lastTabSwitch: null
+  lastTabSwitch: null,
 };
 
 chrome.storage.sync.get(
@@ -268,7 +268,10 @@ function updateStats() {
 }
 
 function handleTabSwitch(timestamp) {
-  if (!dailyStats.lastTabSwitch || timestamp - dailyStats.lastTabSwitch > 1000) {
+  if (
+    !dailyStats.lastTabSwitch ||
+    timestamp - dailyStats.lastTabSwitch > 1000
+  ) {
     dailyStats.tabSwitches++;
     dailyStats.lastTabSwitch = timestamp;
     updateStats();
@@ -295,7 +298,7 @@ function resetDailyStats() {
     distractions: 0,
     pomodoroActive: false,
     currentSession: null,
-    lastTabSwitch: null
+    lastTabSwitch: null,
   };
   updateStats();
 }

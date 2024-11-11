@@ -1,129 +1,147 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Deep Focus</title>
-  <link rel="stylesheet" type="text/css" href="popup.css">
-</head>
-<body>
-  <div class="container">
-    <h1>Deep Focus Mode</h1>
-    
-    <div class="toggle-section">
-      <label class="switch">
-        <input type="checkbox" id="focusMode">
-        <span class="slider round"></span>
-      </label>
-      <span>Enable Focus Mode</span>
-    </div>
+  <head>
+    <title>Deep Focus</title>
+    <link rel="stylesheet" type="text/css" href="popup.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Deep Focus Mode</h1>
 
-    <div class="toggle-section">
-      <label class="switch">
-        <input type="checkbox" id="grayMode">
-        <span class="slider round"></span>
-      </label>
-      <span>Gray Mode</span>
-    </div>
-
-    <div class="settings">
-      <h2>Focus Settings</h2>
-      
-      <div class="setting-item">
-        <label>Content Filtering:</label>
-        <select id="filterLevel">
-          <option value="none">None</option>
-          <option value="light">Light</option>
-          <option value="moderate">Moderate</option>
-          <option value="extreme">Extreme</option>
-        </select>
-      </div>
-
-      <div class="setting-item pomodoro-section">
-        <div class="pomodoro-display">
-          <div class="timer-display">
-            <span id="timerMinutes">25</span>:<span id="timerSeconds">00</span>
-          </div>
-          <div class="timer-label" id="timerLabel">FOCUS TIME</div>
-        </div>
-        
-        <div class="pomodoro-controls">
-          <div class="duration-controls">
-            <div class="duration-input">
-              <label>Work</label>
-              <div class="number-input">
-                <button class="minus" data-input="workDuration">-</button>
-                <input type="number" id="workDuration" min="1" max="60" value="25">
-                <button class="plus" data-input="workDuration">+</button>
-              </div>
-            </div>
-            <div class="duration-input">
-              <label>Break</label>
-              <div class="number-input">
-                <button class="minus" data-input="breakDuration">-</button>
-                <input type="number" id="breakDuration" min="1" max="30" value="5">
-                <button class="plus" data-input="breakDuration">+</button>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <button id="startPomodoro" class="timer-button">Start Focus</button>
-        
-        <div class="pomodoro-progress">
-          <div class="progress-bar">
-            <div id="progressFill"></div>
-          </div>
-          <div class="session-count">
-            Sessions completed: <span id="sessionCount">0</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="setting-item">
-        <label>Background Sound:</label>
-        <select id="soundscape">
-          <option value="none">None</option>
-          <option value="whitenoise">White Noise</option>
-          <option value="rain">Rain</option>
-          <option value="cafe">Cafe Ambience</option>
-        </select>
-      </div>
-
-      <div class="setting-item">
-        <label>Blocked Sites:</label>
-        <div class="blocked-sites">
-          <input type="text" id="newSite" placeholder="Enter domain (e.g., facebook.com)">
-          <button id="addSite">Add</button>
-        </div>
-        <ul id="blockedSitesList" class="blocked-list"></ul>
-      </div>
-
-      <div class="setting-item dimming-control">
-        <label>
-          <span>Dimming Level</span>
-          <span class="value" id="dimmingValue">50%</span>
+      <div class="toggle-section">
+        <label class="switch">
+          <input type="checkbox" id="focusMode" />
+          <span class="slider round"></span>
         </label>
-        <input type="range" id="dimmingLevel" min="0" max="100" value="50">
+        <span>Enable Focus Mode</span>
       </div>
-    </div>
 
-    <div class="stats">
-      <h2>Focus Statistics</h2>
-      <div class="stat-grid">
-        <div class="stat-item">
-          <label>Today's Focus Time:</label>
-          <span id="focusTime">0</span> minutes
+      <div class="toggle-section">
+        <label class="switch">
+          <input type="checkbox" id="grayMode" />
+          <span class="slider round"></span>
+        </label>
+        <span>Gray Mode</span>
+      </div>
+
+      <div class="settings">
+        <h2>Focus Settings</h2>
+
+        <div class="setting-item">
+          <label>Content Filtering:</label>
+          <select id="filterLevel">
+            <option value="none">None</option>
+            <option value="light">Light</option>
+            <option value="moderate">Moderate</option>
+            <option value="extreme">Extreme</option>
+          </select>
         </div>
-        <div class="stat-item">
-          <label>Tab Switches:</label>
-          <span id="tabSwitches">0</span>
+
+        <div class="setting-item pomodoro-section">
+          <div class="pomodoro-display">
+            <div class="timer-display">
+              <span id="timerMinutes">25</span>:<span id="timerSeconds"
+                >00</span
+              >
+            </div>
+            <div class="timer-label" id="timerLabel">FOCUS TIME</div>
+          </div>
+
+          <div class="pomodoro-controls">
+            <div class="duration-controls">
+              <div class="duration-input">
+                <label>Work</label>
+                <div class="number-input">
+                  <button class="minus" data-input="workDuration">-</button>
+                  <input
+                    type="number"
+                    id="workDuration"
+                    min="1"
+                    max="60"
+                    value="25"
+                  />
+                  <button class="plus" data-input="workDuration">+</button>
+                </div>
+              </div>
+              <div class="duration-input">
+                <label>Break</label>
+                <div class="number-input">
+                  <button class="minus" data-input="breakDuration">-</button>
+                  <input
+                    type="number"
+                    id="breakDuration"
+                    min="1"
+                    max="30"
+                    value="5"
+                  />
+                  <button class="plus" data-input="breakDuration">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button id="startPomodoro" class="timer-button">Start Focus</button>
+
+          <div class="pomodoro-progress">
+            <div class="progress-bar">
+              <div id="progressFill"></div>
+            </div>
+            <div class="session-count">
+              Sessions completed: <span id="sessionCount">0</span>
+            </div>
+          </div>
         </div>
-        <div class="stat-item">
-          <label>Focus Score:</label>
-          <span id="focusScore">100</span>%
+
+        <div class="setting-item">
+          <label>Background Sound:</label>
+          <select id="soundscape">
+            <option value="none">None</option>
+            <option value="whitenoise">White Noise</option>
+            <option value="rain">Rain</option>
+            <option value="cafe">Cafe Ambience</option>
+          </select>
+        </div>
+
+        <div class="setting-item">
+          <label>Blocked Sites:</label>
+          <div class="blocked-sites">
+            <input
+              type="text"
+              id="newSite"
+              placeholder="Enter domain (e.g., facebook.com)"
+            />
+            <button id="addSite">Add</button>
+          </div>
+          <ul id="blockedSitesList" class="blocked-list"></ul>
+        </div>
+
+        <div class="setting-item dimming-control">
+          <label>
+            <span>Dimming Level</span>
+            <span class="value" id="dimmingValue">50%</span>
+          </label>
+          <input type="range" id="dimmingLevel" min="0" max="100" value="50" />
+        </div>
+      </div>
+
+      <div class="stats">
+        <h2>Focus Statistics</h2>
+        <div class="stat-grid">
+          <div class="stat-item">
+            <label>Today's Focus Time:</label>
+            <span id="focusTime">0</span> minutes
+          </div>
+          <div class="stat-item">
+            <label>Tab Switches:</label>
+            <span id="tabSwitches">0</span>
+          </div>
+          <div class="stat-item">
+            <label>Focus Score:</label>
+            <span id="focusScore">100</span>%
+          </div>
         </div>
       </div>
     </div>
-  </div>
-  <script src="popup.js"></script>
-</body>
-</html> 
+    <script src="popup.js"></script>
+  </body>
+</html>

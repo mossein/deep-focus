@@ -381,7 +381,11 @@ document.addEventListener("visibilitychange", () => {
   });
 });
 
-window.addEventListener("unload", cleanup);
+window.addEventListener("pagehide", (event) => {
+  if (!event.persisted) {
+    cleanup();
+  }
+});
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => {

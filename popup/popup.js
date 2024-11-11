@@ -61,6 +61,45 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  function updateExtensionIcon(isEnabled) {
+    try {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+
+      img.onload = function () {
+        canvas.width = img.width;
+        canvas.height = img.height;
+
+        if (!isEnabled) {
+          ctx.filter = "grayscale(100%) opacity(50%)";
+        }
+
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = canvas.toDataURL("image/png");
+
+        chrome.action.setIcon(
+          {
+            imageData: ctx.getImageData(0, 0, canvas.width, canvas.height),
+          },
+          () => {
+            if (chrome.runtime.lastError) {
+              console.error(
+                "Error updating icon:",
+                chrome.runtime.lastError.message
+              );
+            }
+          }
+        );
+      };
+
+      img.src = "icons/icon.png";
+    } catch (error) {
+      console.error("Failed to update icon:", error);
+    }
+  }
+
   chrome.storage.sync.get(
     [
       "focusMode",
@@ -71,9 +110,22 @@ document.addEventListener("DOMContentLoaded", function () {
       "dimmingLevel",
       "pomodoroActive",
       "grayMode",
+      "blockedSites",
     ],
     function (data) {
-      focusModeToggle.checked = data.focusMode || false;
+      const isEnabled = data.focusMode || false;
+
+      if (!isEnabled && data.blockedSites?.length > 0) {
+        chrome.storage.sync.set({ blockedSites: [] });
+        chrome.runtime.sendMessage({
+          type: "updateBlockedSites",
+          sites: [],
+        });
+      }
+
+      updateExtensionIcon(isEnabled);
+
+      focusModeToggle.checked = isEnabled;
       filterLevel.value = data.filterLevel || "none";
       workDuration.value = data.workDuration || 25;
       breakDuration.value = data.breakDuration || 5;
@@ -82,17 +134,47 @@ document.addEventListener("DOMContentLoaded", function () {
       pomodoroActive = data.pomodoroActive || false;
       grayModeToggle.checked = data.grayMode || false;
 
+      const controls = [
+        grayModeToggle,
+        filterLevel,
+        workDuration,
+        breakDuration,
+        startPomodoroBtn,
+        soundscape,
+        dimmingLevel,
+        newSiteInput,
+        addSiteButton,
+      ];
+
+      controls.forEach((control) => {
+        if (control) {
+          control.disabled = !isEnabled;
+        }
+      });
+
+      if (pomodoroActive && !isEnabled) {
+        pomodoroActive = false;
+        chrome.runtime.sendMessage({ type: "stopPomodoro" });
+      }
+
       if (pomodoroActive) {
         startPomodoroBtn.textContent = "Stop";
       }
 
-      if (data.soundscape !== "none") {
+      if (data.soundscape !== "none" && isEnabled) {
         initializeSoundscape(data.soundscape);
       }
 
       document.getElementById("dimmingValue").textContent = `${
         data.dimmingLevel || 50
       }%`;
+
+      const storedDimmingLevel =
+        data.dimmingLevel !== undefined ? data.dimmingLevel : 50;
+      dimmingLevel.value = storedDimmingLevel;
+      document.getElementById(
+        "dimmingValue"
+      ).textContent = `${storedDimmingLevel}%`;
     }
   );
 
@@ -100,13 +182,52 @@ document.addEventListener("DOMContentLoaded", function () {
 
   focusModeToggle.addEventListener("change", function () {
     const isEnabled = this.checked;
-    chrome.storage.sync.set({ focusMode: isEnabled }, () => {
-      if (handleChromeError()) return;
-      sendMessageToAllTabs({
-        type: "toggleFocusMode",
-        enabled: isEnabled,
+    const currentDimmingLevel = parseInt(dimmingLevel.value);
+
+    if (!isEnabled) {
+      chrome.storage.sync.set({
+        grayMode: false,
+        focusMode: false,
+        pomodoroActive: false,
+        filterLevel: "none",
+        soundscape: "none",
+        blockedSites: [],
       });
-    });
+
+      setTimeout(() => {
+        sendMessageToAllTabs({
+          type: "toggleFocusMode",
+          enabled: false,
+        });
+
+        sendMessageToAllTabs({ type: "setFilterLevel", level: "none" });
+        sendMessageToAllTabs({ type: "toggleGrayMode", enabled: false });
+
+        chrome.tabs.query({}, (tabs) => {
+          tabs.forEach((tab) => {
+            if (tab.url && tab.url.startsWith("http")) {
+              chrome.tabs.reload(tab.id);
+            }
+          });
+        });
+      }, 100);
+    } else {
+      chrome.storage.sync.set({
+        focusMode: true,
+        dimmingLevel: currentDimmingLevel,
+      });
+
+      setTimeout(() => {
+        sendMessageToAllTabs({
+          type: "toggleFocusMode",
+          enabled: true,
+        });
+        sendMessageToAllTabs({
+          type: "updateDimming",
+          level: currentDimmingLevel,
+        });
+      }, 100);
+    }
   });
 
   filterLevel.addEventListener("change", function () {
@@ -144,32 +265,30 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   dimmingLevel.addEventListener("input", function () {
-    const value = this.value;
+    const value = parseInt(this.value);
     document.getElementById("dimmingValue").textContent = `${value}%`;
 
-    clearTimeout(this.timeout);
-    this.timeout = setTimeout(() => {
-      sendMessageToActiveTab({
-        type: "updateDimming",
-        level: value,
-      });
-    }, 16); // roughly one frame at 60fps
+    sendMessageToAllTabs({
+      type: "updateDimming",
+      level: value,
+    });
   });
 
   dimmingLevel.addEventListener("change", function () {
-    const value = this.value;
-    batchStorageUpdate("dimmingLevel", parseInt(value));
+    const value = parseInt(this.value);
+    chrome.storage.sync.set({ dimmingLevel: value });
   });
 
   grayModeToggle.addEventListener("change", function () {
     const isEnabled = this.checked;
-    chrome.storage.sync.set({ grayMode: isEnabled }, () => {
-      if (handleChromeError()) return;
+    chrome.storage.sync.set({ grayMode: isEnabled });
+
+    setTimeout(() => {
       sendMessageToAllTabs({
         type: "toggleGrayMode",
         enabled: isEnabled,
       });
-    });
+    }, 100);
   });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -186,10 +305,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function updateStats() {
     chrome.runtime.sendMessage({ type: "getStats" }, function (response) {
-      if (chrome.runtime.lastError) {
-        console.error(chrome.runtime.lastError);
-        return;
-      }
       if (response && response.dailyStats) {
         updateStatsUI(response.dailyStats);
       }
@@ -199,10 +314,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function updateStatsUI(stats) {
     if (!stats) return;
 
-    const focusTimeHours = Math.floor(stats.focusTime / 60);
-    const focusTimeMinutes = stats.focusTime % 60;
-    focusTimeEl.textContent = `${focusTimeHours}h ${focusTimeMinutes}m`;
-
+    focusTimeEl.textContent = stats.focusTime || "0";
     tabSwitchesEl.textContent = stats.tabSwitches || "0";
 
     const score = calculateFocusScore(stats);
@@ -258,10 +370,7 @@ document.addEventListener("DOMContentLoaded", function () {
       soundPlayer = new Audio(`../sounds/${type}.mp3`);
       soundPlayer.loop = true;
       soundPlayer.volume = 0.3;
-      soundPlayer.play().catch((error) => {
-        console.error("Error playing sound:", error);
-        chrome.storage.sync.set({ soundscape: "none" });
-      });
+      soundPlayer.play();
     }
   }
 
@@ -282,14 +391,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   addSiteButton.addEventListener("click", () => {
     const site = newSiteInput.value.trim().toLowerCase();
-
-    const urlPattern =
-      /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/;
-    if (!urlPattern.test(site)) {
-      alert("Please enter a valid domain (e.g., example.com)");
-      return;
-    }
-
     if (site) {
       chrome.storage.sync.get(["blockedSites"], (data) => {
         const sites = data.blockedSites || [];
@@ -302,9 +403,8 @@ document.addEventListener("DOMContentLoaded", function () {
               type: "updateBlockedSites",
               sites,
             });
+            chrome.runtime.sendMessage({ type: "checkBlockedSites" });
           });
-        } else {
-          alert("This site is already blocked");
         }
       });
     }
@@ -376,17 +476,12 @@ document.addEventListener("DOMContentLoaded", function () {
         if (data.pomodoroActive && data.pomodoroEndTime) {
           const remaining = data.pomodoroEndTime - Date.now();
           if (remaining > 0) {
-            pomodoroActive = true;
-            startPomodoroBtn.textContent = "Stop";
             updatePomodoroUI({
               timeRemaining: remaining,
               duration: data.currentSession?.duration || 25 * 60 * 1000,
               isBreak: data.currentSession?.isBreak || false,
             });
-          } else {
-            pomodoroActive = false;
-            chrome.storage.sync.set({ pomodoroActive: false });
-            startPomodoroBtn.textContent = "Start Focus";
+            setTimeout(startTimerUpdate, 1000);
           }
         }
       }
@@ -411,29 +506,4 @@ document.addEventListener("DOMContentLoaded", function () {
       }, 100);
     }
   });
-
-  window.addEventListener("unload", () => {
-    if (soundPlayer) {
-      soundPlayer.pause();
-      soundPlayer = null;
-    }
-  });
-
-  chrome.storage.sync.get(["grayMode"], function (data) {
-    grayModeToggle.checked = data.grayMode || false;
-    if (data.grayMode) {
-      sendMessageToAllTabs({
-        type: "toggleGrayMode",
-        enabled: true,
-      });
-    }
-  });
 });
-
-function handleChromeError() {
-  if (chrome.runtime.lastError) {
-    console.error("Chrome runtime error:", chrome.runtime.lastError);
-    return true;
-  }
-  return false;
-}

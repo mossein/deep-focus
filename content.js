@@ -2,6 +2,7 @@ let focusOverlay = null;
 let filteredElements = new Set();
 let observer = null;
 let grayModeOverlay = null;
+let isExtensionValid = true;
 
 const filterLevels = {
   light: ["ads", "comments"],
@@ -134,12 +135,26 @@ function applyContentFiltering(level) {
 }
 
 function initializeObserver() {
+  if (!isExtensionValid) return;
+
   if (document.body) {
     observer = new MutationObserver((mutations) => {
-      chrome.storage.sync.get(["filterLevel"], (data) => {
-        if (data.filterLevel && data.filterLevel !== "none") {
-          applyContentFiltering(data.filterLevel);
-        }
+      chromeAPIWrapper(() => {
+        chrome.storage.sync.get(
+          ["filterLevel", "focusMode", "dimmingLevel"],
+          (data) => {
+            if (data.focusMode) {
+              if (data.filterLevel && data.filterLevel !== "none") {
+                applyContentFiltering(data.filterLevel);
+              }
+              if (focusOverlay) {
+                focusOverlay.style.backgroundColor = `rgba(0, 0, 0, ${
+                  (data.dimmingLevel / 100) * 0.7
+                })`;
+              }
+            }
+          }
+        );
       });
     });
 
@@ -148,23 +163,24 @@ function initializeObserver() {
       subtree: true,
     });
 
-    chrome.storage.sync.get(["focusMode", "dimmingLevel"], function (data) {
-      if (data.focusMode) {
-        createOverlay(data.dimmingLevel || 50);
-      }
-    });
-
-    chrome.storage.sync.get(["customFilters", "filterLevel"], function (data) {
-      if (data.filterLevel) {
-        applyContentFiltering(data.filterLevel);
-      }
-
-      if (data.customFilters) {
-        data.customFilters.forEach((selector) => {
-          const element = document.querySelector(selector);
-          if (element) addCustomFilter(element);
-        });
-      }
+    chromeAPIWrapper(() => {
+      chrome.storage.sync.get(
+        ["focusMode", "dimmingLevel", "grayMode", "filterLevel"],
+        function (data) {
+          if (data.focusMode) {
+            const storedDimmingLevel = data.dimmingLevel || 50;
+            createOverlay(storedDimmingLevel);
+            if (data.filterLevel && data.filterLevel !== "none") {
+              applyContentFiltering(data.filterLevel);
+            }
+            if (data.grayMode) {
+              document.body.style.filter = "grayscale(100%)";
+              document.body.style.webkitFilter = "grayscale(100%)";
+              createGrayOverlay();
+            }
+          }
+        }
+      );
     });
   } else {
     setTimeout(initializeObserver, 100);
@@ -172,102 +188,168 @@ function initializeObserver() {
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeObserver);
+  document.addEventListener("DOMContentLoaded", () => {
+    chromeAPIWrapper(initializeObserver);
+  });
 } else {
-  initializeObserver();
+  chromeAPIWrapper(initializeObserver);
 }
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  switch (message.type) {
-    case "toggleFocusMode":
-      if (message.enabled) {
-        chrome.storage.sync.get(["dimmingLevel"], function (data) {
-          createOverlay(data.dimmingLevel || 50);
-        });
-      } else if (focusOverlay) {
-        focusOverlay.remove();
-      }
-      break;
+function chromeAPIWrapper(callback) {
+  if (!isExtensionValid) return;
 
-    case "updateDimming":
-      const level = message.level || 50;
-      if (focusOverlay) {
-        focusOverlay.style.backgroundColor = `rgba(0, 0, 0, ${
-          (level / 100) * 0.7
-        })`;
-      } else {
-        chrome.storage.sync.get(["focusMode"], function (data) {
-          if (data.focusMode) {
-            createOverlay(level);
-          }
-        });
-      }
-      break;
-
-    case "setFilterLevel":
-      applyContentFiltering(message.level);
-      break;
-
-    case "addCustomFilter":
-      const element = document.querySelector(message.selector);
-      if (element) addCustomFilter(element);
-      break;
-
-    case "filterElementAtPoint":
-      const elementAtPoint = getElementAtPoint(message.x, message.y);
-      if (elementAtPoint) {
-        addCustomFilter(elementAtPoint);
-      }
-      break;
-
-    case "toggleGrayMode":
-      if (message.enabled) {
-        document.body.style.filter = "grayscale(100%)";
-        document.body.style.webkitFilter = "grayscale(100%)";
-        createGrayOverlay();
-      } else {
-        if (grayModeOverlay) {
-          grayModeOverlay.remove();
-        }
-        document.body.style.filter = "";
-        document.body.style.webkitFilter = "";
-      }
-      break;
-  }
-});
-
-let tabSwitchCount = 0;
-let lastActiveTime = Date.now();
-
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
-    chrome.runtime.sendMessage({
-      type: "tabSwitch",
-      timestamp: Date.now(),
-    });
-  } else {
-    lastActiveTime = Date.now();
-  }
-});
-
-function initializeFocusMode() {
-  chrome.storage.sync.get(["focusMode", "dimmingLevel"], function (data) {
-    if (data.focusMode) {
-      createOverlay(data.dimmingLevel || 50);
+  try {
+    callback();
+  } catch (error) {
+    if (error.message.includes("Extension context invalidated")) {
+      console.log("Extension reloaded, please refresh the page");
+      isExtensionValid = false;
+      cleanup();
     }
+  }
+}
+
+function cleanup() {
+  try {
+    if (focusOverlay) {
+      focusOverlay.remove();
+      focusOverlay = null;
+    }
+    if (grayModeOverlay) {
+      grayModeOverlay.remove();
+      grayModeOverlay = null;
+    }
+    if (observer) {
+      observer.disconnect();
+      observer = null;
+    }
+    filteredElements.forEach((element) => {
+      if (element && element.style) {
+        element.style.filter = "";
+        delete element.dataset.deepFocusFiltered;
+      }
+    });
+    filteredElements.clear();
+    document.body.style.filter = "";
+    document.body.style.webkitFilter = "";
+  } catch (error) {
+    console.error("Cleanup error:", error);
+  }
+}
+
+function initializeModes() {
+  chromeAPIWrapper(() => {
+    chrome.storage.sync.get(
+      ["focusMode", "dimmingLevel", "grayMode", "filterLevel"],
+      function (data) {
+        if (chrome.runtime.lastError) {
+          console.error(chrome.runtime.lastError);
+          return;
+        }
+        if (data.focusMode) {
+          createOverlay(data.dimmingLevel || 50);
+          if (data.filterLevel && data.filterLevel !== "none") {
+            applyContentFiltering(data.filterLevel);
+          }
+          if (data.grayMode) {
+            document.body.style.filter = "grayscale(100%)";
+            document.body.style.webkitFilter = "grayscale(100%)";
+            createGrayOverlay();
+          }
+        }
+      }
+    );
   });
 }
 
-initializeFocusMode();
+const messageListener = (message, sender, sendResponse) => {
+  if (!isExtensionValid) return;
+
+  chromeAPIWrapper(() => {
+    switch (message.type) {
+      case "toggleFocusMode":
+        if (message.enabled) {
+          chrome.storage.sync.get(["dimmingLevel"], function (data) {
+            const storedDimmingLevel = data.dimmingLevel || 50;
+            createOverlay(storedDimmingLevel);
+          });
+        } else {
+          cleanup();
+        }
+        break;
+      case "updateDimming":
+        const level = message.level;
+        if (focusOverlay) {
+          focusOverlay.style.backgroundColor = `rgba(0, 0, 0, ${
+            (level / 100) * 0.7
+          })`;
+        }
+        break;
+      case "setFilterLevel":
+        applyContentFiltering(message.level);
+        break;
+      case "addCustomFilter":
+        const element = document.querySelector(message.selector);
+        if (element) addCustomFilter(element);
+        break;
+      case "filterElementAtPoint":
+        const elementAtPoint = getElementAtPoint(message.x, message.y);
+        if (elementAtPoint) {
+          addCustomFilter(elementAtPoint);
+        }
+        break;
+      case "toggleGrayMode":
+        if (message.enabled) {
+          document.body.style.filter = "grayscale(100%)";
+          document.body.style.webkitFilter = "grayscale(100%)";
+          createGrayOverlay();
+        } else {
+          if (grayModeOverlay) {
+            grayModeOverlay.remove();
+          }
+          document.body.style.filter = "";
+          document.body.style.webkitFilter = "";
+        }
+        break;
+    }
+  });
+};
+
+try {
+  chrome.runtime.onMessage.addListener(messageListener);
+} catch (error) {
+  console.log("Extension context invalid, please refresh the page");
+  cleanup();
+}
+
+document.addEventListener("visibilitychange", () => {
+  chromeAPIWrapper(() => {
+    if (document.hidden) {
+      chrome.runtime.sendMessage({
+        type: "tabSwitch",
+        timestamp: Date.now(),
+      });
+    } else {
+      lastActiveTime = Date.now();
+    }
+  });
+});
+
+window.addEventListener("unload", cleanup);
+
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeFocusMode);
+  document.addEventListener("DOMContentLoaded", () => {
+    chromeAPIWrapper(initializeModes);
+  });
+} else {
+  chromeAPIWrapper(initializeModes);
 }
 
 function createGrayOverlay() {
   if (grayModeOverlay) {
     grayModeOverlay.remove();
   }
-  
+
   document.body.style.filter = "grayscale(100%)";
   document.body.style.webkitFilter = "grayscale(100%)";
 
@@ -287,24 +369,9 @@ function createGrayOverlay() {
   document.documentElement.appendChild(grayModeOverlay);
 }
 
-function initializeModes() {
-  chrome.storage.sync.get(
-    ["focusMode", "dimmingLevel", "grayMode"],
-    function (data) {
-      if (data.focusMode) {
-        createOverlay(data.dimmingLevel || 50);
-      }
-      if (data.grayMode) {
-        document.body.style.filter = "grayscale(100%)";
-        document.body.style.webkitFilter = "grayscale(100%)";
-        createGrayOverlay();
-      }
-    }
-  );
-}
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeModes);
-} else {
-  initializeModes();
-}
+window.addEventListener("error", (event) => {
+  if (event.message.includes("Extension context invalidated")) {
+    isExtensionValid = false;
+    cleanup();
+  }
+});

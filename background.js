@@ -388,3 +388,87 @@ function checkIfSiteBlocked(url, tabId) {
     console.log("Error checking blocked site:", e);
   }
 }
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "updateBlockedSites") {
+    if (message.sites.length === 0) {
+      chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: Array.from({ length: 1000 }, (_, i) => i + 1),
+      });
+    }
+  }
+});
+
+chrome.tabs.onCreated.addListener((tab) => {
+  chrome.storage.sync.get(
+    ["focusMode", "dimmingLevel", "grayMode", "filterLevel"],
+    (data) => {
+      if (data.focusMode) {
+        const storedDimmingLevel = data.dimmingLevel || 50;
+        setTimeout(() => {
+          chrome.tabs.sendMessage(tab.id, {
+            type: "toggleFocusMode",
+            enabled: true,
+          });
+
+          chrome.tabs.sendMessage(tab.id, {
+            type: "updateDimming",
+            level: storedDimmingLevel,
+          });
+
+          if (data.grayMode) {
+            chrome.tabs.sendMessage(tab.id, {
+              type: "toggleGrayMode",
+              enabled: true,
+            });
+          }
+
+          if (data.filterLevel && data.filterLevel !== "none") {
+            chrome.tabs.sendMessage(tab.id, {
+              type: "setFilterLevel",
+              level: data.filterLevel,
+            });
+          }
+        }, 100);
+      }
+    }
+  );
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === "complete") {
+    chrome.storage.sync.get(
+      ["focusMode", "dimmingLevel", "grayMode", "filterLevel"],
+      (data) => {
+        if (data.focusMode) {
+          const storedDimmingLevel = data.dimmingLevel || 50;
+          setTimeout(() => {
+            chrome.tabs.sendMessage(tabId, {
+              type: "toggleFocusMode",
+              enabled: true,
+            });
+
+            chrome.tabs.sendMessage(tabId, {
+              type: "updateDimming",
+              level: storedDimmingLevel,
+            });
+
+            if (data.grayMode) {
+              chrome.tabs.sendMessage(tabId, {
+                type: "toggleGrayMode",
+                enabled: true,
+              });
+            }
+
+            if (data.filterLevel && data.filterLevel !== "none") {
+              chrome.tabs.sendMessage(tabId, {
+                type: "setFilterLevel",
+                level: data.filterLevel,
+              });
+            }
+          }, 100);
+        }
+      }
+    );
+  }
+});

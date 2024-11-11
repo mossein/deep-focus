@@ -411,3 +411,16 @@ input[type="range"]::-webkit-slider-thumb:hover {
   font-size: 14px;
   color: #666;
 }
+
+/* Add these styles to your existing CSS */
+input:disabled,
+select:disabled,
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.number-input button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}

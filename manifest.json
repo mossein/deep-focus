@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Deep Focus",
+  "version": "1.0",
+  "description": "A tool to enhance focus by reducing visual distractions",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "notifications",
+    "tabs",
+    "webNavigation",
+    "contextMenus"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": "icons/icon.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "200": "icons/icon.png"
+  },
+  "web_accessible_resources": [{
+    "resources": ["sounds/*"],
+    "matches": ["<all_urls>"]
+  }]
+}

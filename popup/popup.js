@@ -100,14 +100,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
   focusModeToggle.addEventListener("change", function () {
     const isEnabled = this.checked;
-    chrome.storage.sync.set({ focusMode: isEnabled });
-
-    setTimeout(() => {
+    chrome.storage.sync.set({ focusMode: isEnabled }, () => {
+      if (handleChromeError()) return;
       sendMessageToAllTabs({
         type: "toggleFocusMode",
         enabled: isEnabled,
       });
-    }, 100);
+    });
   });
 
   filterLevel.addEventListener("change", function () {
@@ -164,14 +163,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
   grayModeToggle.addEventListener("change", function () {
     const isEnabled = this.checked;
-    chrome.storage.sync.set({ grayMode: isEnabled });
-
-    setTimeout(() => {
+    chrome.storage.sync.set({ grayMode: isEnabled }, () => {
+      if (handleChromeError()) return;
       sendMessageToAllTabs({
         type: "toggleGrayMode",
         enabled: isEnabled,
       });
-    }, 100);
+    });
   });
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -188,6 +186,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function updateStats() {
     chrome.runtime.sendMessage({ type: "getStats" }, function (response) {
+      if (chrome.runtime.lastError) {
+        console.error(chrome.runtime.lastError);
+        return;
+      }
       if (response && response.dailyStats) {
         updateStatsUI(response.dailyStats);
       }
@@ -197,7 +199,10 @@ document.addEventListener("DOMContentLoaded", function () {
   function updateStatsUI(stats) {
     if (!stats) return;
 
-    focusTimeEl.textContent = stats.focusTime || "0";
+    const focusTimeHours = Math.floor(stats.focusTime / 60);
+    const focusTimeMinutes = stats.focusTime % 60;
+    focusTimeEl.textContent = `${focusTimeHours}h ${focusTimeMinutes}m`;
+
     tabSwitchesEl.textContent = stats.tabSwitches || "0";
 
     const score = calculateFocusScore(stats);
@@ -218,10 +223,8 @@ document.addEventListener("DOMContentLoaded", function () {
     return Math.max(0, Math.min(100, Math.round(score)));
   }
 
-  // Update stats every minute
   setInterval(updateStats, 60000);
 
-  // Update stats when popup opens
   updateStats();
 
   function updatePomodoroUI(data) {
@@ -255,7 +258,10 @@ document.addEventListener("DOMContentLoaded", function () {
       soundPlayer = new Audio(`../sounds/${type}.mp3`);
       soundPlayer.loop = true;
       soundPlayer.volume = 0.3;
-      soundPlayer.play();
+      soundPlayer.play().catch((error) => {
+        console.error("Error playing sound:", error);
+        chrome.storage.sync.set({ soundscape: "none" });
+      });
     }
   }
 
@@ -276,6 +282,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
   addSiteButton.addEventListener("click", () => {
     const site = newSiteInput.value.trim().toLowerCase();
+
+    const urlPattern =
+      /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$/;
+    if (!urlPattern.test(site)) {
+      alert("Please enter a valid domain (e.g., example.com)");
+      return;
+    }
+
     if (site) {
       chrome.storage.sync.get(["blockedSites"], (data) => {
         const sites = data.blockedSites || [];
@@ -288,8 +302,9 @@ document.addEventListener("DOMContentLoaded", function () {
               type: "updateBlockedSites",
               sites,
             });
-            chrome.runtime.sendMessage({ type: "checkBlockedSites" });
           });
+        } else {
+          alert("This site is already blocked");
         }
       });
     }
@@ -361,12 +376,17 @@ document.addEventListener("DOMContentLoaded", function () {
         if (data.pomodoroActive && data.pomodoroEndTime) {
           const remaining = data.pomodoroEndTime - Date.now();
           if (remaining > 0) {
+            pomodoroActive = true;
+            startPomodoroBtn.textContent = "Stop";
             updatePomodoroUI({
               timeRemaining: remaining,
               duration: data.currentSession?.duration || 25 * 60 * 1000,
               isBreak: data.currentSession?.isBreak || false,
             });
-            setTimeout(startTimerUpdate, 1000);
+          } else {
+            pomodoroActive = false;
+            chrome.storage.sync.set({ pomodoroActive: false });
+            startPomodoroBtn.textContent = "Start Focus";
           }
         }
       }
@@ -391,4 +411,29 @@ document.addEventListener("DOMContentLoaded", function () {
       }, 100);
     }
   });
+
+  window.addEventListener("unload", () => {
+    if (soundPlayer) {
+      soundPlayer.pause();
+      soundPlayer = null;
+    }
+  });
+
+  chrome.storage.sync.get(["grayMode"], function (data) {
+    grayModeToggle.checked = data.grayMode || false;
+    if (data.grayMode) {
+      sendMessageToAllTabs({
+        type: "toggleGrayMode",
+        enabled: true,
+      });
+    }
+  });
 });
+
+function handleChromeError() {
+  if (chrome.runtime.lastError) {
+    console.error("Chrome runtime error:", chrome.runtime.lastError);
+    return true;
+  }
+  return false;
+}
